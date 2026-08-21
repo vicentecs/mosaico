@@ -403,6 +403,40 @@ https://exemplo.com/outra-pagina"></textarea>
         btnVis.click();
       }
     });
+
+    // ========== Modo COPA (?COPA na URL) ==========
+    // Até 22/08/2026 → lista 1
+    // A partir de 23/08/2026 → lista 2
+    (function initCopa() {
+      const params = new URLSearchParams(window.location.search);
+      const temCopa = [...params.keys()].some(k => k.toUpperCase() === 'COPA');
+      if (!temCopa) return;
+
+      const LISTA_ATE_22 = [
+        'https://youtube.com/live/KZHc71aKcxY',
+        'https://youtube.com/live/RSJTQ45gVFs',
+        'https://youtube.com/live/uhc8L79Xgw8',
+        'https://youtube.com/live/IXwrV41SLDI'
+      ];
+
+      const LISTA_A_PARTIR_23 = [
+        'https://youtube.com/live/7uJ1bGMBfY8',
+        'https://youtube.com/live/AIDJfRpir-E',
+        'https://youtube.com/live/YdZCGZ1JLto',
+        'https://youtube.com/live/E70Xm7q5Kj0'
+      ];
+
+      // Data de corte: 23/08/2026 00:00 (horário local do navegador)
+      const agora = new Date();
+      const corte = new Date(2026, 7, 23); // mês é 0-indexed → 7 = agosto
+
+      const listaCopa = (agora >= corte) ? LISTA_A_PARTIR_23 : LISTA_ATE_22;
+
+      // Preenche o textarea (caso o usuário volte) e abre o mosaico
+      urlsEl.value = listaCopa.join('\n');
+      const listaNormalizada = listaCopa.map(normalizarUrl);
+      montarGrade(listaNormalizada);
+    })();
   })();
   </script>
 </body>
