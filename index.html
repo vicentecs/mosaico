@@ -272,6 +272,7 @@ https://exemplo.com/outra-pagina"></textarea>
     const btnVoltar = document.getElementById('btn-voltar');
 
     let listaAtual = [];
+    let modoCopa = false;   // true quando aberto com ?COPA
 
     function isPortrait() {
       return window.innerHeight > window.innerWidth;
@@ -371,7 +372,7 @@ https://exemplo.com/outra-pagina"></textarea>
       }
 
       setupEl.style.display = 'none';
-      btnVoltar.style.display = 'block';
+      btnVoltar.style.display = modoCopa ? 'none' : 'block';
     }
 
     function voltar() {
@@ -438,6 +439,7 @@ https://exemplo.com/outra-pagina"></textarea>
       const params = new URLSearchParams(window.location.search);
       const temCopa = [...params.keys()].some(k => k.toUpperCase() === 'COPA');
       if (!temCopa) return;
+      modoCopa = true;
 
       const LISTA_ATE_22 = [
         'https://youtube.com/live/KZHc71aKcxY',
