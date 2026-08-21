@@ -101,18 +101,49 @@
       height: 100dvh;
       gap: 2px;
       background: #111;
+      overflow: hidden;
     }
+
+    /* Modo lista (mobile): 1 por linha, scroll vertical, 16:9 */
+    #grid.mode-list {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      height: 100dvh;
+      overflow-y: auto;
+      overflow-x: hidden;
+      -webkit-overflow-scrolling: touch;
+      gap: 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
     .cell {
       position: relative;
       background: #000;
       overflow: hidden;
     }
+
+    /* Desktop / grade: célula preenche o espaço da grid */
+    #grid:not(.mode-list) .cell {
+      width: 100%;
+      height: 100%;
+    }
+
+    /* Mobile lista: força proporção 16:9 sem distorcer */
+    #grid.mode-list .cell {
+      width: 100%;
+      flex: 0 0 auto;
+      aspect-ratio: 16 / 9;
+    }
+
     .cell iframe {
       width: 100%;
       height: 100%;
       border: none;
       background: #000;
+      display: block;
     }
+
     .cell .label {
       position: absolute;
       left: 6px;
@@ -130,6 +161,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+
     .cell .offline {
       position: absolute;
       inset: 0;
@@ -170,7 +202,7 @@
       background: rgba(60,60,60,0.95);
     }
 
-    /* ========== Mobile / Portrait ========== */
+    /* ========== Mobile / Portrait (setup) ========== */
     @media (max-width: 768px), (orientation: portrait) and (max-width: 1024px) {
       #setup {
         padding: 16px 12px;
@@ -183,9 +215,6 @@
       #btn-visualizar {
         width: min(100%, 320px);
         padding: 14px 24px;
-      }
-      #grid {
-        gap: 2px;
       }
       .cell .label {
         font-size: clamp(9px, 2.6vw, 12px);
@@ -236,14 +265,6 @@ https://exemplo.com/outra-pagina"></textarea>
       13: [4, 4], 14: [4, 4], 15: [4, 4], 16: [4, 4]
     };
 
-    // Presets otimizados para portrait / mobile (mais linhas)
-    const PRESETS_PORTRAIT = {
-      1: [1, 1], 2: [1, 2], 3: [1, 3], 4: [2, 2],
-      5: [2, 3], 6: [2, 3], 7: [2, 4], 8: [2, 4], 9: [3, 3],
-      10: [2, 5], 11: [3, 4], 12: [3, 4],
-      13: [3, 5], 14: [3, 5], 15: [3, 5], 16: [4, 4]
-    };
-
     const setupEl   = document.getElementById('setup');
     const gridEl    = document.getElementById('grid');
     const urlsEl    = document.getElementById('urls');
@@ -261,28 +282,22 @@ https://exemplo.com/outra-pagina"></textarea>
              /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
+    /** No celular / tela estreita → lista vertical (1 por linha) */
+    function usarModoLista() {
+      return isMobile() || window.innerWidth < 700 || (isPortrait() && window.innerWidth < 900);
+    }
+
     function calcularGrade(n) {
-      const usePortrait = isPortrait() || (isMobile() && window.innerWidth < 600);
-      const table = usePortrait ? PRESETS_PORTRAIT : PRESETS;
-
-      if (table[n]) return table[n];
-
-      if (usePortrait) {
-        const rows = Math.ceil(Math.sqrt(n * 1.4));
-        const cols = Math.ceil(n / rows);
-        return [cols, rows];
-      } else {
-        const cols = Math.ceil(Math.sqrt(n));
-        const rows = Math.ceil(n / cols);
-        return [cols, rows];
-      }
+      if (PRESETS[n]) return PRESETS[n];
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      return [cols, rows];
     }
 
     function normalizarUrl(url) {
       const patterns = [
         /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i
       ];
-
       for (const re of patterns) {
         const m = url.match(re);
         if (m && m[1]) {
@@ -303,12 +318,23 @@ https://exemplo.com/outra-pagina"></textarea>
     function montarGrade(lista) {
       listaAtual = lista;
       const n = Math.min(lista.length, MAX_SLOTS);
-      const [cols, rows] = calcularGrade(n);
+      const modoLista = usarModoLista();
 
       limparGrade();
-      gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-      gridEl.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
-      gridEl.style.display = 'grid';
+      gridEl.classList.toggle('mode-list', modoLista);
+
+      if (modoLista) {
+        // Lista vertical: 1 coluna, cada player com 16:9
+        gridEl.style.display = 'flex';
+        gridEl.style.gridTemplateColumns = '';
+        gridEl.style.gridTemplateRows = '';
+      } else {
+        // Grade clássica (desktop / landscape)
+        const [cols, rows] = calcularGrade(n);
+        gridEl.style.display = 'grid';
+        gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+        gridEl.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
+      }
 
       for (let i = 0; i < n; i++) {
         const url = lista[i];
@@ -326,7 +352,7 @@ https://exemplo.com/outra-pagina"></textarea>
         const label = document.createElement('div');
         label.className = 'label';
         let short = url.replace(/^https?:\/\//i, '');
-        const maxLen = isMobile() ? 28 : 40;
+        const maxLen = modoLista ? 42 : (isMobile() ? 28 : 40);
         if (short.length > maxLen) short = short.slice(0, maxLen - 1) + '…';
         label.textContent = `${i + 1} · ${short}`;
 
@@ -352,11 +378,12 @@ https://exemplo.com/outra-pagina"></textarea>
       limparGrade();
       listaAtual = [];
       gridEl.style.display = 'none';
+      gridEl.classList.remove('mode-list');
       btnVoltar.style.display = 'none';
       setupEl.style.display = 'flex';
     }
 
-    // Recria a grade quando a orientação muda
+    // Recria a grade quando a orientação / tamanho muda
     let resizeTimer;
     window.addEventListener('resize', () => {
       if (listaAtual.length === 0) return;
