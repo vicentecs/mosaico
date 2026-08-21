@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mosaico de Câmeras / URLs</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #0d0d0d;
+      color: #eee;
+      font-family: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    /* ========== Tela de configuração ========== */
+    #setup {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      padding: 24px;
+      gap: 20px;
+    }
+    #setup h1 {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+    #setup p {
+      color: #999;
+      font-size: 0.95rem;
+      text-align: center;
+      max-width: 520px;
+      line-height: 1.5;
+    }
+    #urls {
+      width: min(640px, 100%);
+      height: min(280px, 40vh);
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 10px;
+      color: #eee;
+      font-family: "SF Mono", "Cascadia Code", Consolas, monospace;
+      font-size: 0.9rem;
+      padding: 14px 16px;
+      resize: vertical;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    #urls:focus {
+      border-color: #3b82f6;
+    }
+    #urls::placeholder {
+      color: #555;
+    }
+    #btn-visualizar {
+      background: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      padding: 12px 36px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s, transform 0.1s;
+    }
+    #btn-visualizar:hover {
+      background: #1d4ed8;
+    }
+    #btn-visualizar:active {
+      transform: scale(0.97);
+    }
+    #btn-visualizar:disabled {
+      background: #444;
+      cursor: not-allowed;
+    }
+
+    /* ========== Mosaico ========== */
+    #grid {
+      display: none;
+      width: 100vw;
+      height: 100vh;
+      gap: 3px;
+      background: #111;
+    }
+    .cell {
+      position: relative;
+      background: #000;
+      overflow: hidden;
+    }
+    .cell iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      background: #000;
+    }
+    .cell .label {
+      position: absolute;
+      left: 8px;
+      bottom: 6px;
+      color: #fff;
+      font-size: clamp(11px, 1.2vw, 15px);
+      text-shadow: 0 0 4px #000, 0 0 4px #000;
+      z-index: 2;
+      pointer-events: none;
+      background: rgba(0,0,0,0.45);
+      padding: 2px 7px;
+      border-radius: 4px;
+    }
+    .cell .offline {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f55;
+      font-size: clamp(13px, 1.5vw, 18px);
+      background: rgba(0,0,0,0.65);
+      z-index: 3;
+    }
+
+    /* Botão voltar (canto superior direito) */
+    #btn-voltar {
+      display: none;
+      position: fixed;
+      top: 12px;
+      right: 12px;
+      z-index: 100;
+      background: rgba(30,30,30,0.85);
+      color: #eee;
+      border: 1px solid #444;
+      border-radius: 8px;
+      padding: 8px 16px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      backdrop-filter: blur(6px);
+      transition: background 0.15s;
+    }
+    #btn-voltar:hover {
+      background: rgba(50,50,50,0.95);
+    }
+  </style>
+</head>
+<body>
+  <!-- Tela inicial -->
+  <div id="setup">
+    <h1>Mosaico de URLs</h1>
+    <p>
+      Cole uma URL por linha (streams HLS, páginas web, feeds de câmera etc.).
+      Clique em <strong>Visualizar</strong> para abrir o mosaico em tela cheia.
+    </p>
+    <textarea id="urls" placeholder="https://exemplo.com/stream1
+https://exemplo.com/stream2
+https://exemplo.com/stream3"></textarea>
+    <button id="btn-visualizar">Visualizar</button>
+  </div>
+
+  <!-- Grade do mosaico -->
+  <div id="grid"></div>
+  <button id="btn-voltar">← Voltar</button>
+
+  <script>
+  (function () {
+    const MAX_SLOTS = 16;
+
+    // Presets estilo NVR: [colunas, linhas]
+    const PRESETS = {
+      1: [1, 1], 2: [2, 1], 3: [2, 2], 4: [2, 2],
+      5: [3, 2], 6: [3, 2], 7: [3, 3], 8: [3, 3], 9: [3, 3],
+      10: [4, 3], 11: [4, 3], 12: [4, 3],
+      13: [4, 4], 14: [4, 4], 15: [4, 4], 16: [4, 4]
+    };
+
+    const setupEl   = document.getElementById('setup');
+    const gridEl    = document.getElementById('grid');
+    const urlsEl    = document.getElementById('urls');
+    const btnVis    = document.getElementById('btn-visualizar');
+    const btnVoltar = document.getElementById('btn-voltar');
+
+    function calcularGrade(n) {
+      if (PRESETS[n]) return PRESETS[n];
+      const cols = Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      return [cols, rows];
+    }
+
+    function limparGrade() {
+      // Remove iframes para liberar recursos
+      gridEl.querySelectorAll('iframe').forEach(f => {
+        f.src = 'about:blank';
+        f.remove();
+      });
+      gridEl.innerHTML = '';
+    }
+
+    function montarGrade(lista) {
+      const n = Math.min(lista.length, MAX_SLOTS);
+      const [cols, rows] = calcularGrade(n);
+
+      limparGrade();
+      gridEl.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
+      gridEl.style.gridTemplateRows    = `repeat(${rows}, 1fr)`;
+      gridEl.style.display = 'grid';
+
+      for (let i = 0; i < n; i++) {
+        const url = lista[i];
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+
+        const iframe = document.createElement('iframe');
+        iframe.src = url;
+        iframe.allow = 'autoplay; fullscreen; encrypted-media';
+        iframe.setAttribute('loading', 'lazy');
+        // sandbox leve: permite scripts e same-origin (necessário para muitos players)
+        // Remova ou ajuste se precisar de mais restrições
+        iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin allow-forms allow-popups allow-presentation');
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        // Mostra o número + trecho da URL (sem protocolo)
+        let short = url.replace(/^https?:\/\//i, '');
+        if (short.length > 40) short = short.slice(0, 37) + '…';
+        label.textContent = `${i + 1} · ${short}`;
+
+        cell.appendChild(iframe);
+        cell.appendChild(label);
+        gridEl.appendChild(cell);
+
+        // Detecta falha de carga (limitado por política de origem cruzada)
+        iframe.addEventListener('error', () => {
+          if (!cell.querySelector('.offline')) {
+            const badge = document.createElement('div');
+            badge.className = 'offline';
+            badge.textContent = 'Falha ao carregar';
+            cell.appendChild(badge);
+          }
+        });
+      }
+
+      setupEl.style.display = 'none';
+      btnVoltar.style.display = 'block';
+    }
+
+    function voltar() {
+      limparGrade();
+      gridEl.style.display = 'none';
+      btnVoltar.style.display = 'none';
+      setupEl.style.display = 'flex';
+    }
+
+    btnVis.addEventListener('click', () => {
+      const texto = urlsEl.value.trim();
+      if (!texto) {
+        urlsEl.focus();
+        return;
+      }
+
+      const lista = texto
+        .split(/\r?\n/)
+        .map(l => l.trim())
+        .filter(l => l.length > 0 && /^https?:\/\//i.test(l));
+
+      if (lista.length === 0) {
+        alert('Nenhuma URL válida encontrada.\nUse uma URL por linha começando com http:// ou https://');
+        return;
+      }
+
+      if (lista.length > MAX_SLOTS) {
+        alert(`Serão exibidas apenas as primeiras ${MAX_SLOTS} URLs.`);
+      }
+
+      montarGrade(lista);
+    });
+
+    btnVoltar.addEventListener('click', voltar);
+
+    // Atalho: Ctrl/Cmd + Enter no textarea
+    urlsEl.addEventListener('keydown', (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        btnVis.click();
+      }
+    });
+  })();
+  </script>
+</body>
+</html>
