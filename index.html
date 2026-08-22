@@ -311,12 +311,36 @@ https://exemplo.com/outra-pagina"></textarea>
       return url;
     }
 
+    // Intervalo para forçar re-sincronização das lives do YouTube (ms)
+    const YT_RESYNC_MS = 5 * 60 * 1000;  // 5 minutos
+    let resyncTimer = null;
+
     function limparGrade() {
+      if (resyncTimer) {
+        clearInterval(resyncTimer);
+        resyncTimer = null;
+      }
       gridEl.querySelectorAll('iframe').forEach(f => {
         f.src = 'about:blank';
         f.remove();
       });
       gridEl.innerHTML = '';
+    }
+
+    /** Recarrega iframes do YouTube para voltar à borda do ao vivo */
+    function resyncYouTube() {
+      gridEl.querySelectorAll('iframe').forEach(iframe => {
+        const src = iframe.src || '';
+        if (src.includes('youtube.com/embed/')) {
+          // Força reload mantendo a mesma URL (re-sincroniza a live)
+          iframe.src = src;
+        }
+      });
+    }
+
+    function iniciarResync() {
+      if (resyncTimer) clearInterval(resyncTimer);
+      resyncTimer = setInterval(resyncYouTube, YT_RESYNC_MS);
     }
 
     function montarGrade(lista) {
@@ -376,6 +400,9 @@ https://exemplo.com/outra-pagina"></textarea>
 
       setupEl.style.display = 'none';
       btnVoltar.style.display = modoCopa ? 'none' : 'block';
+
+      // Mantém lives do YouTube próximas do ao vivo
+      iniciarResync();
     }
 
     function voltar() {
@@ -400,6 +427,13 @@ https://exemplo.com/outra-pagina"></textarea>
     window.addEventListener('orientationchange', () => {
       if (listaAtual.length === 0) return;
       setTimeout(() => montarGrade(listaAtual), 250);
+    });
+
+    // Quando a aba volta a ficar visível, re-sincroniza as lives
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && listaAtual.length > 0) {
+        resyncYouTube();
+      }
     });
 
     btnVis.addEventListener('click', () => {
