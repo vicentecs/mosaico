@@ -283,9 +283,11 @@ https://exemplo.com/outra-pagina"></textarea>
              /Android|iPhone|iPad|iPod|webOS|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     }
 
-    /** No celular / tela estreita → lista vertical (1 por linha) */
+    /** Lista vertical (1 por linha) apenas em telas realmente pequenas */
     function usarModoLista() {
-      return isMobile() || window.innerWidth < 700 || (isPortrait() && window.innerWidth < 900);
+      // Só ativa lista se a largura for menor que 600px (celular em portrait)
+      // Telas normais, tablets e landscape continuam em mosaico
+      return window.innerWidth < 600;
     }
 
     function calcularGrade(n) {
