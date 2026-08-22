@@ -297,18 +297,38 @@ https://exemplo.com/outra-pagina"></textarea>
       return [cols, rows];
     }
 
-    function normalizarUrl(url) {
+    function extrairYouTubeId(url) {
       const patterns = [
         /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|live\/|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/i
       ];
       for (const re of patterns) {
         const m = url.match(re);
-        if (m && m[1]) {
-          // vq=large tenta forçar 480p (YouTube pode ignorar conforme conexão/dispositivo)
-          return `https://www.youtube.com/embed/${m[1]}?autoplay=1&mute=1&vq=large`;
-        }
+        if (m && m[1]) return m[1];
+      }
+      return null;
+    }
+
+    function normalizarUrl(url) {
+      const id = extrairYouTubeId(url);
+      if (id) {
+        // vq=large tenta forçar 480p (YouTube pode ignorar conforme conexão/dispositivo)
+        return `https://www.youtube.com/embed/${id}?autoplay=1&mute=1&vq=large`;
       }
       return url;
+    }
+
+    /** Busca o título do vídeo via oEmbed (não precisa de API key) */
+    async function buscarTituloYouTube(videoId) {
+      try {
+        const res = await fetch(
+          `https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${videoId}&format=json`
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        return data.title || null;
+      } catch (e) {
+        return null;
+      }
     }
 
     // Intervalo para forçar re-sincronização das lives do YouTube (ms)
@@ -383,6 +403,19 @@ https://exemplo.com/outra-pagina"></textarea>
         const maxLen = modoLista ? 42 : (isMobile() ? 28 : 40);
         if (short.length > maxLen) short = short.slice(0, maxLen - 1) + '…';
         label.textContent = `${i + 1} · ${short}`;
+
+        // Se for YouTube, busca o título real e atualiza o label
+        const ytId = extrairYouTubeId(url);
+        if (ytId) {
+          buscarTituloYouTube(ytId).then(titulo => {
+            if (titulo) {
+              const maxTitle = modoLista ? 48 : (isMobile() ? 32 : 45);
+              let t = titulo;
+              if (t.length > maxTitle) t = t.slice(0, maxTitle - 1) + '…';
+              label.textContent = `${i + 1} · ${t}`;
+            }
+          });
+        }
 
         cell.appendChild(iframe);
         cell.appendChild(label);
