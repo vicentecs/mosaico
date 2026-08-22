@@ -304,7 +304,8 @@ https://exemplo.com/outra-pagina"></textarea>
       for (const re of patterns) {
         const m = url.match(re);
         if (m && m[1]) {
-          return `https://www.youtube.com/embed/${m[1]}?autoplay=1&mute=1`;
+          // vq=large tenta forçar 480p (YouTube pode ignorar conforme conexão/dispositivo)
+          return `https://www.youtube.com/embed/${m[1]}?autoplay=1&mute=1&vq=large`;
         }
       }
       return url;
